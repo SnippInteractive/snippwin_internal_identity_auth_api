@@ -1,0 +1,551 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-5e6f-7890-abcd-123456789abc",
+		"name": "Snipp Internal Identity Auth API",
+		"description": "Collection for testing the Snipp Internal Identity Authentication API endpoints.\n\nThis API provides centralized authentication validation for internal applications using secure Basic Authentication.\n\n**Base URL**: `https://localhost:7001` (Development)\n\n**Authentication Method**:\n- Basic Authentication Header (secure credential transmission via HTTPS)\n\n**Security**: Always use HTTPS in production to ensure credentials are encrypted during transmission.\n\n**HTTP Status Codes**:\n- 200: Successful authentication with user details\n- 400: Invalid request parameters\n- 401: Invalid credentials or account disabled\n- 403: User lacks permission for the requested application\n- 500: Internal server error",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Validate User Access",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 400, 401, 403, 500]);",
+									"});",
+									"",
+									"pm.test(\"Response has required fields\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('hasAccess');",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('timestamp');",
+									"});",
+									"",
+									"pm.test(\"Successful authentication includes user details\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.hasAccess === true && pm.response.code === 200) {",
+									"        pm.expect(jsonData).to.have.property('roleName');",
+									"        pm.expect(jsonData).to.have.property('permissions');",
+									"        pm.expect(jsonData.permissions).to.be.an('array');",
+									"        pm.expect(jsonData).to.have.property('firstName');",
+									"        pm.expect(jsonData).to.have.property('lastName');",
+									"        pm.expect(jsonData).to.have.property('email');",
+									"        pm.expect(jsonData).to.have.property('phoneNumber');",
+									"    }",
+									"});",
+									"",
+									"pm.test(\"Failed authentication includes reason\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.hasAccess === false) {",
+									"        pm.expect(jsonData).to.have.property('reason');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "{{password}}",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "{{username}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"appName\": \"{{appName}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/validate",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"validate"
+							]
+						},
+						"description": "Validates user credentials using Basic Authentication header and checks if the user has permission to access the specified application.\n\n**Usage**:\n1. Set the `username` and `password` in the Authorization tab (Basic Auth)\n2. Specify the `appName` in the request body\n3. The API will return authentication status with user details on success\n\n**Security**: Credentials are transmitted securely via Basic Auth header (base64 encoded). Always use HTTPS in production."
+					},
+					"response": [
+						{
+							"name": "✅ Successful Authentication (200)",
+							"originalRequest": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "Admin@123",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "sunil.kumar",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"appName\": \"Internal Identity Authentication\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/auth/validate",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"auth",
+										"validate"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"hasAccess\": true,\n  \"message\": \"User authenticated successfully\",\n  \"roleName\": \"Administrator\",\n  \"permissions\": [\n    \"Internal Identity Authentication\",\n    \"Snipp Tiny Url\",\n    \"P&G CMS Rebate Center\"\n  ],\n  \"firstName\": \"Sunil\",\n  \"lastName\": \"Kumar\",\n  \"email\": \"sunil.kumar@snippinteractive.com\",\n  \"phoneNumber\": \"+1-555-0123\",\n  \"timestamp\": \"2024-09-04T15:30:00.123Z\"\n}"
+						},
+						{
+							"name": "❌ Invalid Credentials (401)",
+							"originalRequest": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "wrongpassword",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "sunil.kumar",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"appName\": \"Internal Identity Authentication\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/auth/validate",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"auth",
+										"validate"
+									]
+								}
+							},
+							"status": "Unauthorized",
+							"code": 401,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"hasAccess\": false,\n  \"message\": \"Authentication failed\",\n  \"reason\": \"InvalidCredentials\",\n  \"timestamp\": \"2024-09-04T15:30:00.123Z\"\n}"
+						},
+						{
+							"name": "❌ Account Disabled (401)",
+							"originalRequest": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "password123",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "disabled.user",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"appName\": \"Internal Identity Authentication\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/auth/validate",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"auth",
+										"validate"
+									]
+								}
+							},
+							"status": "Unauthorized",
+							"code": 401,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"hasAccess\": false,\n  \"message\": \"Account is disabled\",\n  \"reason\": \"AccountDisabled\",\n  \"timestamp\": \"2024-09-04T15:30:00.123Z\"\n}"
+						},
+						{
+							"name": "🚫 Insufficient Permissions (403)",
+							"originalRequest": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "password123",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "limited.user",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"appName\": \"Restricted Application\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/auth/validate",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"auth",
+										"validate"
+									]
+								}
+							},
+							"status": "Forbidden",
+							"code": 403,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"hasAccess\": false,\n  \"message\": \"Access denied - insufficient permissions\",\n  \"reason\": \"InsufficientPermissions\",\n  \"timestamp\": \"2024-09-04T15:30:00.123Z\"\n}"
+						},
+						{
+							"name": "❌ Invalid Request (400)",
+							"originalRequest": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "Admin@123",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "sunil.kumar",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"appName\": \"\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/auth/validate",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"auth",
+										"validate"
+									]
+								}
+							},
+							"status": "Bad Request",
+							"code": 400,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"hasAccess\": false,\n  \"message\": \"Invalid request parameters\",\n  \"reason\": \"InvalidInput\",\n  \"timestamp\": \"2024-09-04T15:30:00.123Z\"\n}"
+						},
+						{
+							"name": "💥 System Error (500)",
+							"originalRequest": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "Admin@123",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "sunil.kumar",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"appName\": \"Internal Identity Authentication\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/auth/validate",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"auth",
+										"validate"
+									]
+								}
+							},
+							"status": "Internal Server Error",
+							"code": 500,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"hasAccess\": false,\n  \"message\": \"An error occurred during authentication\",\n  \"reason\": \"SystemError\",\n  \"timestamp\": \"2024-09-04T15:30:00.123Z\"\n}"
+						}
+					]
+				}
+			],
+			"description": "Authentication endpoint for validating user credentials via Basic Auth and checking application access permissions."
+		},
+		{
+			"name": "Health Check",
+			"item": [
+				{
+					"name": "API Health Status",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response contains status and timestamp\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData).to.have.property('timestamp');",
+									"    pm.expect(jsonData.status).to.eql('healthy');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"health"
+							]
+						},
+						"description": "Simple health check endpoint to verify that the API is running and responsive.\n\n**Usage**:\n- No authentication required\n- Returns status and timestamp\n- Useful for monitoring and load balancer health checks"
+					},
+					"response": [
+						{
+							"name": "✅ Healthy Response",
+							"originalRequest": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/auth/health",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"auth",
+										"health"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"status\": \"healthy\",\n  \"timestamp\": \"2024-09-04T15:30:00.123Z\"\n}"
+						}
+					]
+				}
+			],
+			"description": "Health check endpoint for monitoring API availability and system status."
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "https://localhost:7001",
+			"description": "Base URL for the Authentication API (Development)"
+		},
+		{
+			"key": "username",
+			"value": "sunil.kumar",
+			"description": "Username for authentication testing"
+		},
+		{
+			"key": "password",
+			"value": "Admin@123",
+			"description": "Password for authentication testing"
+		},
+		{
+			"key": "appName",
+			"value": "Internal Identity Authentication",
+			"description": "Application name to test access for"
+		}
+	]
+}

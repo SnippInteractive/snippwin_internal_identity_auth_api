@@ -26,6 +26,26 @@ public class AuthValidationResponse
     public List<string>? Permissions { get; set; }
 
     /// <summary>
+    /// User's first name (only returned on successful authentication)
+    /// </summary>
+    public string? FirstName { get; set; }
+
+    /// <summary>
+    /// User's last name (only returned on successful authentication)
+    /// </summary>
+    public string? LastName { get; set; }
+
+    /// <summary>
+    /// User's email address (only returned on successful authentication)
+    /// </summary>
+    public string? Email { get; set; }
+
+    /// <summary>
+    /// User's phone number (only returned on successful authentication)
+    /// </summary>
+    public string? PhoneNumber { get; set; }
+
+    /// <summary>
     /// Timestamp when the validation occurred
     /// </summary>
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
@@ -33,7 +53,8 @@ public class AuthValidationResponse
     /// <summary>
     /// Creates a successful authentication response
     /// </summary>
-    public static AuthValidationResponse Success(string roleName, List<string> permissions)
+    public static AuthValidationResponse Success(string roleName, List<string> permissions, 
+        string firstName, string lastName, string email, string? phoneNumber)
     {
         return new AuthValidationResponse
         {
@@ -41,19 +62,41 @@ public class AuthValidationResponse
             Message = "User authenticated successfully",
             RoleName = roleName,
             Permissions = permissions,
+            FirstName = firstName,
+            LastName = lastName,
+            Email = email,
+            PhoneNumber = phoneNumber,
             Timestamp = DateTime.UtcNow
         };
     }
 
     /// <summary>
+    /// Failure reason for authentication
+    /// </summary>
+    public enum FailureReason
+    {
+        InvalidCredentials,
+        InsufficientPermissions,
+        AccountDisabled,
+        InvalidInput,
+        SystemError
+    }
+
+    /// <summary>
+    /// Reason for authentication failure (only set when HasAccess is false)
+    /// </summary>
+    public FailureReason? Reason { get; set; }
+
+    /// <summary>
     /// Creates a failed authentication response
     /// </summary>
-    public static AuthValidationResponse Failure(string message = "Authentication failed")
+    public static AuthValidationResponse Failure(string message = "Authentication failed", FailureReason? reason = null)
     {
         return new AuthValidationResponse
         {
             HasAccess = false,
             Message = message,
+            Reason = reason,
             Timestamp = DateTime.UtcNow
         };
     }

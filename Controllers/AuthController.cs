@@ -28,12 +28,12 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Validates user credentials and checks if user has permission to access the specified application
     /// </summary>
-    /// <param name="request">Authentication validation request containing appName and optionally username/password</param>
+    /// <param name="request">Authentication validation request containing appName</param>
     /// <returns>Authentication validation response indicating whether user has access</returns>
     /// <remarks>
-    /// This endpoint accepts credentials in two ways:
+    /// This endpoint accepts credentials via Basic Authentication header:
     /// 
-    /// **Method 1: Basic Authentication Header (for Web Applications)**
+    /// **Basic Authentication Header:**
     /// 
     ///     POST /api/auth/validate
     ///     Authorization: Basic dXNlcm5hbWU6cGFzc3dvcmQ=
@@ -41,17 +41,6 @@ public class AuthController : ControllerBase
     ///     
     ///     {
     ///       "appName": "Internal Identity Authentication"
-    ///     }
-    /// 
-    /// **Method 2: Credentials in Request Body (for API Applications)**
-    /// 
-    ///     POST /api/auth/validate
-    ///     Content-Type: application/json
-    ///     
-    ///     {
-    ///       "appName": "Snipp Tiny Url",
-    ///       "username": "sunil.kumar",
-    ///       "password": "Admin@123"
     ///     }
     /// 
     /// **Success Response:**
@@ -65,26 +54,44 @@ public class AuthController : ControllerBase
     ///         "Snipp Tiny Url",
     ///         "P&amp;G CMS Rebate Center"
     ///       ],
+    ///       "firstName": "Sunil",
+    ///       "lastName": "Kumar",
+    ///       "email": "sunil.kumar@snippinteractive.com",
+    ///       "phoneNumber": "+1-555-0123",
     ///       "timestamp": "2025-09-03T10:30:00Z"
     ///     }
     /// 
-    /// **Failure Response:**
+    /// **Failure Response (401 Unauthorized):**
     /// 
     ///     {
     ///       "hasAccess": false,
     ///       "message": "Authentication failed",
+    ///       "reason": "InvalidCredentials",
+    ///       "timestamp": "2025-09-03T10:30:00Z"
+    ///     }
+    /// 
+    /// **Failure Response (403 Forbidden):**
+    /// 
+    ///     {
+    ///       "hasAccess": false,
+    ///       "message": "Access denied - insufficient permissions",
+    ///       "reason": "InsufficientPermissions",
     ///       "timestamp": "2025-09-03T10:30:00Z"
     ///     }
     /// </remarks>
-    /// <response code="200">Authentication validation completed (check hasAccess field for result)</response>
+    /// <response code="200">User authenticated successfully</response>
     /// <response code="400">Invalid request parameters</response>
+    /// <response code="401">Invalid credentials or account disabled</response>
+    /// <response code="403">User lacks permission for the requested application</response>
     /// <response code="429">Too many requests - rate limit exceeded</response>
     /// <response code="500">Internal server error</response>
     [HttpPost("validate")]
     [ProducesResponseType(typeof(AuthValidationResponse), 200)]
-    [ProducesResponseType(typeof(ValidationProblemDetails), 400)]
+    [ProducesResponseType(typeof(AuthValidationResponse), 400)]
+    [ProducesResponseType(typeof(AuthValidationResponse), 401)]
+    [ProducesResponseType(typeof(AuthValidationResponse), 403)]
     [ProducesResponseType(429)]
-    [ProducesResponseType(500)]
+    [ProducesResponseType(typeof(AuthValidationResponse), 500)]
     public async Task<ActionResult<AuthValidationResponse>> Validate(
         [FromBody, Required] AuthValidationRequest request)
     {
@@ -96,13 +103,14 @@ public class AuthController : ControllerBase
             _logger.LogInformation("Received authentication validation request for app {AppName} from IP {ClientIp}", 
                 request.AppName, clientIp);
 
-            // Extract credentials from either Basic Auth header or request body
+            // Extract credentials from Basic Auth header
             var credentials = GetCredentials(request);
             if (credentials == null)
             {
                 _logger.LogWarning("No valid credentials provided in request for app {AppName} from IP {ClientIp}", 
                     request.AppName, clientIp);
-                return Ok(AuthValidationResponse.Failure("No valid credentials provided"));
+                var errorResponse = AuthValidationResponse.Failure("No valid credentials provided", AuthValidationResponse.FailureReason.InvalidInput);
+                return BadRequest(errorResponse);
             }
 
             var (username, password) = credentials.Value;
@@ -116,19 +124,30 @@ public class AuthController : ControllerBase
             {
                 _logger.LogInformation("Authentication successful for user {Username} accessing {AppName} from IP {ClientIp}", 
                     username, request.AppName, clientIp);
+                return Ok(result);
             }
             else
             {
                 _logger.LogWarning("Authentication failed for user {Username} accessing {AppName} from IP {ClientIp}: {Message}", 
                     username, request.AppName, clientIp, result.Message);
+                
+                // Return appropriate HTTP status code based on failure reason
+                return result.Reason switch
+                {
+                    AuthValidationResponse.FailureReason.InvalidInput => BadRequest(result),
+                    AuthValidationResponse.FailureReason.InvalidCredentials => Unauthorized(result),
+                    AuthValidationResponse.FailureReason.AccountDisabled => Unauthorized(result),
+                    AuthValidationResponse.FailureReason.InsufficientPermissions => StatusCode(403, result), // Forbidden
+                    AuthValidationResponse.FailureReason.SystemError => StatusCode(500, result), // Internal Server Error
+                    _ => Unauthorized(result) // Default to Unauthorized for unknown reasons
+                };
             }
-
-            return Ok(result);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error processing authentication validation for app {AppName}", request.AppName);
-            return Ok(AuthValidationResponse.Failure("An error occurred during authentication"));
+            var errorResponse = AuthValidationResponse.Failure("An error occurred during authentication", AuthValidationResponse.FailureReason.SystemError);
+            return StatusCode(500, errorResponse);
         }
     }
 
@@ -145,23 +164,17 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Extracts credentials from either Basic Auth header or request body
+    /// Extracts credentials from Basic Auth header
     /// </summary>
     /// <param name="request">The validation request</param>
     /// <returns>Username and password tuple, or null if not found</returns>
     private (string Username, string Password)? GetCredentials(AuthValidationRequest request)
     {
-        // First, try to get credentials from Basic Auth header
+        // Get credentials from Basic Auth header only
         var basicAuthCredentials = Request.GetBasicAuthCredentials();
         if (basicAuthCredentials.HasValue)
         {
             return basicAuthCredentials.Value;
-        }
-
-        // If no Basic Auth, try to get from request body
-        if (!string.IsNullOrWhiteSpace(request.Username) && !string.IsNullOrWhiteSpace(request.Password))
-        {
-            return (request.Username, request.Password);
         }
 
         // No credentials found

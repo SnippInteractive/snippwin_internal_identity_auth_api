@@ -59,7 +59,7 @@ public class AuthenticationService
             if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(appName))
             {
                 await LogAuthenticationAttempt(username, appName, false, "Invalid input parameters", ipAddress);
-                return AuthValidationResponse.Failure("Invalid request parameters");
+                return AuthValidationResponse.Failure("Invalid request parameters", AuthValidationResponse.FailureReason.InvalidInput);
             }
 
             // Get user by username
@@ -72,7 +72,7 @@ public class AuthenticationService
             {
                 _logger.LogError(ex, "Error retrieving user {Username}", username);
                 await LogAuthenticationAttempt(username, appName, false, "Database error during user lookup", ipAddress);
-                return AuthValidationResponse.Failure("Authentication failed");
+                return AuthValidationResponse.Failure("Authentication failed", AuthValidationResponse.FailureReason.SystemError);
             }
 
             // Check if user exists and is active
@@ -81,13 +81,13 @@ public class AuthenticationService
                 await LogAuthenticationAttempt(username, appName, false, "User not found", ipAddress);
                 // Use constant time delay to prevent user enumeration
                 await Task.Delay(200);
-                return AuthValidationResponse.Failure("Authentication failed");
+                return AuthValidationResponse.Failure("Authentication failed", AuthValidationResponse.FailureReason.InvalidCredentials);
             }
 
             if (!user.IsActive)
             {
                 await LogAuthenticationAttempt(username, appName, false, "User account disabled", ipAddress);
-                return AuthValidationResponse.Failure("Account is disabled");
+                return AuthValidationResponse.Failure("Account is disabled", AuthValidationResponse.FailureReason.AccountDisabled);
             }
 
             // Verify password
@@ -100,7 +100,7 @@ public class AuthenticationService
             {
                 _logger.LogError(ex, "Error verifying password for user {Username}", username);
                 await LogAuthenticationAttempt(username, appName, false, "Error verifying password", ipAddress);
-                return AuthValidationResponse.Failure("Authentication failed");
+                return AuthValidationResponse.Failure("Authentication failed", AuthValidationResponse.FailureReason.SystemError);
             }
 
             if (!isPasswordValid)
@@ -108,7 +108,7 @@ public class AuthenticationService
                 await LogAuthenticationAttempt(username, appName, false, "Invalid password", ipAddress);
                 // Use constant time delay to prevent timing attacks
                 await Task.Delay(200);
-                return AuthValidationResponse.Failure("Authentication failed");
+                return AuthValidationResponse.Failure("Authentication failed", AuthValidationResponse.FailureReason.InvalidCredentials);
             }
 
             // Get user with role and permissions
@@ -116,7 +116,7 @@ public class AuthenticationService
             if (userWithRole?.Role == null)
             {
                 await LogAuthenticationAttempt(username, appName, false, "User role not found", ipAddress);
-                return AuthValidationResponse.Failure("User configuration error");
+                return AuthValidationResponse.Failure("User configuration error", AuthValidationResponse.FailureReason.SystemError);
             }
 
             // Check if user has permission for the requested application
@@ -124,7 +124,7 @@ public class AuthenticationService
             if (!hasPermission)
             {
                 await LogAuthenticationAttempt(username, appName, false, "User lacks required permission", ipAddress);
-                return AuthValidationResponse.Failure("Access denied - insufficient permissions");
+                return AuthValidationResponse.Failure("Access denied - insufficient permissions", AuthValidationResponse.FailureReason.InsufficientPermissions);
             }
 
             // Get all permissions for the user's role
@@ -149,7 +149,13 @@ public class AuthenticationService
             _logger.LogInformation("Successfully authenticated user {Username} for {AppName} in {ElapsedMs}ms", 
                 username, appName, authTime.TotalMilliseconds);
 
-            return AuthValidationResponse.Success(userWithRole.Role.Name, userPermissions);
+            return AuthValidationResponse.Success(
+                userWithRole.Role.Name, 
+                userPermissions,
+                userWithRole.FirstName ?? string.Empty,
+                userWithRole.LastName ?? string.Empty,
+                userWithRole.Email?.Value ?? string.Empty,
+                userWithRole.PhoneNumber);
         }
         catch (Exception ex)
         {
@@ -157,7 +163,7 @@ public class AuthenticationService
                 username, appName);
             
             await LogAuthenticationAttempt(username, appName, false, "Unexpected system error", ipAddress);
-            return AuthValidationResponse.Failure("An error occurred during authentication");
+            return AuthValidationResponse.Failure("An error occurred during authentication", AuthValidationResponse.FailureReason.SystemError);
         }
     }
 
